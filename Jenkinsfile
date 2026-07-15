@@ -5,6 +5,7 @@ pipeline {
         DOCKER_IMAGE = "devaraj74/stayfinder-py"
         DOCKER_TAG = "${BUILD_NUMBER}"
         DOCKER_CREDENTIALS = "docker-cred"
+        GITHUB_CREDENTIALS = "github-cred"
     }
 
     stages {
@@ -63,6 +64,28 @@ pipeline {
 }
             }
         }
+
+stage('Update GitOps Repository') {
+    steps {
+        dir('gitops') {
+            git branch: 'main',
+                credentialsId: "${GITHUB_CREDENTIALS}",
+                url: 'https://github.com/gcdevaraj/stayfinder-gitops.git'
+
+            sh """
+                sed -i 's|image: .*|image: ${DOCKER_IMAGE}:${DOCKER_TAG}|g' k8s/deployment.yaml
+
+                git config user.name "Jenkins"
+                git config user.email "jenkins@example.com"
+
+                git add k8s/deployment.yaml
+                git commit -m "Update image to ${DOCKER_TAG}" || true
+                git push origin main
+            """
+        }
+    }
+}
+        
     }
 
     post {
