@@ -60,12 +60,12 @@ pipeline {
 
         stage('Push Docker Image') {
             steps {
-                withDockerRegistry(credentialsId: "${DOCKER_CREDENTIALS}") {
-                    sh '''
-                    docker push $DOCKER_IMAGE:$DOCKER_TAG
-                    docker push $DOCKER_IMAGE:latest
-                    '''
-                }
+                withDockerRegistry(credentialsId: "${DOCKER_CREDENTIALS}", url: "https://index.docker.io/v1/") {
+    sh '''
+    docker push $DOCKER_IMAGE:${DOCKER_TAG}
+    docker push $DOCKER_IMAGE:latest
+    '''
+}
             }
         }
     }
