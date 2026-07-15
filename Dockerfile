@@ -1,21 +1,24 @@
-# Use official Python image
 FROM python:3.14-slim
 
 # Set working directory
 WORKDIR /app
 
-# Copy dependency file
+# Copy requirements first
 COPY requirements.txt .
 
-# Install Python dependencies
+# Install dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy project files
+# Copy application source
 COPY . .
 
-# Expose Flask port
-EXPOSE 5000
+# Expose the Flask port
+EXPOSE 4000
 
-# Start the Flask application
-CMD ["flask", "run", "--host=0.0.0.0", "--port=5000"]
+# Environment variables
+ENV PORT=4000
+ENV PYTHONUNBUFFERED=1
+
+# Start the application
+CMD ["python", "app.py"]
