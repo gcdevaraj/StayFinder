@@ -67,21 +67,28 @@ pipeline {
 
 stage('Update GitOps Repository') {
     steps {
-        dir('gitops') {
-            git branch: 'main',
-                credentialsId: "${GITHUB_CREDENTIALS}",
-                url: 'https://github.com/gcdevaraj/stayfinder-gitops.git'
+        withCredentials([usernamePassword(
+            credentialsId: 'github-cred',
+            usernameVariable: 'GIT_USERNAME',
+            passwordVariable: 'GIT_TOKEN'
+        )]) {
+            sh '''
+                rm -rf gitops
 
-            sh """
-                sed -i 's|image: .*|image: ${DOCKER_IMAGE}:${DOCKER_TAG}|g' k8s/deployment.yaml
+                git clone https://${GIT_USERNAME}:${GIT_TOKEN}@github.com/gcdevaraj/stayfinder-gitops.git gitops
+
+                cd gitops
+
+                sed -i "s|image: .*|image: devaraj74/stayfinder-py:${BUILD_NUMBER}|g" k8s/deployment.yaml
 
                 git config user.name "Jenkins"
                 git config user.email "jenkins@example.com"
 
                 git add k8s/deployment.yaml
-                git commit -m "Update image to ${DOCKER_TAG}" || true
+                git commit -m "Update image to ${BUILD_NUMBER}" || true
+
                 git push origin main
-            """
+            '''
         }
     }
 }
