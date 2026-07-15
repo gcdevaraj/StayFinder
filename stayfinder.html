@@ -1,0 +1,2269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StayFinder — Find PGs & Hostels in Bengaluru</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<!-- Leaflet & Leaflet Routing Machine -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+<script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d1117;
+    --bg2: #161b22;
+    --bg3: #21262d;
+    --bg4: #2d333b;
+    --surface: #1c2128;
+    --border: rgba(240,246,252,0.1);
+    --border2: rgba(240,246,252,0.18);
+    --text: #e6edf3;
+    --text2: #8b949e;
+    --text3: #6e7681;
+    --accent: #f97316;
+    --accent2: #ea580c;
+    --accentbg: rgba(249,115,22,0.12);
+    --teal: #0ea5e9;
+    --tealbg: rgba(14,165,233,0.1);
+    --green: #22c55e;
+    --greenbg: rgba(34,197,94,0.1);
+    --purple: #a855f7;
+    --purplebg: rgba(168,85,247,0.1);
+    --red: #ef4444;
+    --redbg: rgba(239,68,68,0.1);
+    --amber: #f59e0b;
+    --amberbg: rgba(245,158,11,0.1);
+    --radius: 10px;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg2); }
+  ::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 99px; }
+
+  /* ── HEADER ── */
+  header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(13,17,23,0.92);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    height: 64px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .logo {
+    font-family: 'Fraunces', serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text);
+    display: flex; align-items: center; gap: 8px;
+    text-decoration: none;
+  }
+  .logo-dot { color: var(--accent); }
+  .logo-badge {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 10px; font-weight: 600;
+    background: var(--accentbg); color: var(--accent);
+    padding: 2px 8px; border-radius: 99px;
+    border: 1px solid rgba(249,115,22,0.3);
+    letter-spacing: 0.05em;
+  }
+  nav { display: flex; align-items: center; gap: 8px; }
+  .nav-link {
+    font-size: 14px; color: var(--text2); text-decoration: none;
+    padding: 6px 14px; border-radius: var(--radius);
+    transition: all 0.15s;
+    cursor: pointer; background: none; border: none;
+  }
+  .nav-link:hover { color: var(--text); background: var(--bg3); }
+  .nav-link.active { color: var(--accent); }
+  .btn-primary {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 500;
+    background: var(--accent); color: #fff;
+    border: none; padding: 8px 20px;
+    border-radius: var(--radius); cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-primary:hover { background: var(--accent2); transform: translateY(-1px); }
+  .btn-secondary {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 500;
+    background: var(--bg3); color: var(--text);
+    border: 1px solid var(--border2); padding: 8px 20px;
+    border-radius: var(--radius); cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-secondary:hover { background: var(--bg4); }
+
+  /* ── VIEWS ── */
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* ══════════════ HERO ══════════════ */
+  .hero {
+    min-height: calc(100vh - 64px);
+    display: grid; grid-template-columns: 1fr 1fr;
+    align-items: center; gap: 0;
+    padding: 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 60% 80% at 80% 50%, rgba(249,115,22,0.06) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 60% at 20% 80%, rgba(14,165,233,0.06) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .hero-left {
+    padding: 4rem 3rem 4rem 4rem;
+    display: flex; flex-direction: column; gap: 2rem;
+    position: relative; z-index: 1;
+  }
+  .hero-eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12px; font-weight: 600; letter-spacing: 0.1em;
+    color: var(--accent); text-transform: uppercase;
+  }
+  .hero-eyebrow::before {
+    content: ''; display: block;
+    width: 24px; height: 2px; background: var(--accent);
+  }
+  .hero-title {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(2.5rem, 4vw, 3.5rem);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+  }
+  .hero-title em {
+    font-style: italic; color: var(--accent);
+  }
+  .hero-sub {
+    font-size: 1.05rem; color: var(--text2); line-height: 1.65;
+    max-width: 480px;
+  }
+  .hero-search {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-lg);
+    padding: 6px;
+    display: flex; flex-direction: column; gap: 6px;
+    max-width: 540px;
+    box-shadow: var(--shadow);
+  }
+  .search-row { display: flex; gap: 6px; }
+  .search-field {
+    flex: 1; display: flex; align-items: center; gap: 10px;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .search-field:hover { border-color: var(--border2); }
+  .search-field svg { color: var(--text3); flex-shrink: 0; }
+  .search-input {
+    background: none; border: none; outline: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px; color: var(--text);
+    width: 100%;
+  }
+  .search-input::placeholder { color: var(--text3); }
+  .search-btn {
+    background: var(--accent); color: #fff;
+    border: none; border-radius: 8px;
+    padding: 10px 24px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 500;
+    cursor: pointer; transition: all 0.15s;
+    white-space: nowrap;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .search-btn:hover { background: var(--accent2); }
+  .hero-stats {
+    display: flex; gap: 2rem;
+  }
+  .stat { display: flex; flex-direction: column; gap: 2px; }
+  .stat-num {
+    font-family: 'Fraunces', serif;
+    font-size: 1.75rem; font-weight: 700; color: var(--text);
+  }
+  .stat-label { font-size: 12px; color: var(--text3); }
+
+  .hero-right {
+    height: calc(100vh - 64px);
+    position: relative;
+    background: var(--bg2);
+    overflow: hidden;
+  }
+  /* Mock Map */
+  .map-bg {
+    width: 100%; height: 100%;
+    background:
+      linear-gradient(rgba(22,27,34,0.85), rgba(22,27,34,0.85)),
+      repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(240,246,252,0.03) 39px, rgba(240,246,252,0.03) 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(240,246,252,0.03) 39px, rgba(240,246,252,0.03) 40px);
+    position: relative;
+  }
+  .map-road { position: absolute; background: rgba(240,246,252,0.06); }
+  .map-road.h { height: 3px; left: 0; right: 0; }
+  .map-road.v { width: 3px; top: 0; bottom: 0; }
+  .map-road.h.major { height: 6px; background: rgba(240,246,252,0.09); }
+  .map-road.v.major { width: 6px; background: rgba(240,246,252,0.09); }
+
+  .map-pin {
+    position: absolute;
+    cursor: pointer;
+    transform: translate(-50%, -100%);
+    transition: transform 0.2s;
+    z-index: 10;
+  }
+  .map-pin:hover { transform: translate(-50%, -100%) scale(1.1); z-index: 20; }
+  .pin-bubble {
+    background: var(--accent);
+    color: #fff;
+    font-size: 12px; font-weight: 600;
+    padding: 5px 10px; border-radius: 99px;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(249,115,22,0.4);
+    position: relative;
+  }
+  .pin-bubble.govt { background: var(--teal); box-shadow: 0 4px 12px rgba(14,165,233,0.4); }
+  .pin-bubble.hostel { background: var(--purple); box-shadow: 0 4px 12px rgba(168,85,247,0.4); }
+  .pin-bubble::after {
+    content: '';
+    position: absolute; bottom: -5px; left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: var(--accent);
+    border-bottom: none;
+  }
+  .pin-bubble.govt::after { border-top-color: var(--teal); }
+  .pin-bubble.hostel::after { border-top-color: var(--purple); }
+
+  .map-area-label {
+    position: absolute;
+    font-size: 11px; font-weight: 600;
+    color: rgba(240,246,252,0.25);
+    letter-spacing: 0.08em; text-transform: uppercase;
+    pointer-events: none;
+  }
+  .map-overlay {
+    position: absolute; bottom: 1.5rem; left: 1.5rem; right: 1.5rem;
+    background: rgba(22,27,34,0.92);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.25rem;
+  }
+  .map-legend { display: flex; gap: 1.25rem; align-items: center; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  /* ══════════════ EXPLORE / LISTINGS ══════════════ */
+  .explore-layout {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    height: calc(100vh - 64px);
+  }
+  .filters-panel {
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 1.5rem;
+    display: flex; flex-direction: column; gap: 1.5rem;
+  }
+  .filter-section { display: flex; flex-direction: column; gap: 0.75rem; }
+  .filter-title {
+    font-size: 12px; font-weight: 600;
+    color: var(--text3); text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .filter-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    font-size: 13px; padding: 5px 12px;
+    border-radius: 99px;
+    border: 1px solid var(--border2);
+    background: none; color: var(--text2);
+    cursor: pointer; transition: all 0.15s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
+  .chip.active { background: var(--accentbg); border-color: var(--accent); color: var(--accent); }
+  .chip.teal { --ca: var(--teal); --cb: var(--tealbg); }
+  .chip.teal:hover, .chip.teal.active { border-color: var(--teal); color: var(--teal); background: var(--tealbg); }
+  .chip.purple { }
+  .chip.purple:hover, .chip.purple.active { border-color: var(--purple); color: var(--purple); background: var(--purplebg); }
+
+  .range-wrap { display: flex; flex-direction: column; gap: 8px; }
+  .range-labels { display: flex; justify-content: space-between; font-size: 13px; color: var(--text2); }
+  .range-val { color: var(--accent); font-weight: 500; }
+  input[type=range] {
+    -webkit-appearance: none; width: 100%; height: 4px;
+    background: linear-gradient(to right, var(--accent) 0%, var(--accent) 60%, var(--bg4) 60%);
+    border-radius: 99px; outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 18px;
+    background: var(--accent); border-radius: 50%;
+    box-shadow: 0 0 0 3px var(--bg2), 0 0 0 5px rgba(249,115,22,0.3);
+    cursor: pointer;
+  }
+
+  .search-in-filter {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 9px 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .search-in-filter input {
+    background: none; border: none; outline: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px; color: var(--text);
+    flex: 1;
+  }
+  .search-in-filter input::placeholder { color: var(--text3); }
+
+  /* Listings */
+  .listings-panel {
+    overflow-y: auto;
+    background: var(--bg);
+  }
+  .listings-header {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(13,17,23,0.95);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+    padding: 1rem 1.5rem;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem;
+  }
+  .results-count { font-size: 14px; color: var(--text2); }
+  .results-count strong { color: var(--text); }
+  .sort-select {
+    background: var(--bg3); border: 1px solid var(--border);
+    color: var(--text); font-family: 'DM Sans', sans-serif;
+    font-size: 13px; padding: 6px 12px;
+    border-radius: var(--radius); cursor: pointer; outline: none;
+  }
+  .view-toggle { display: flex; gap: 4px; }
+  .view-btn {
+    background: none; border: 1px solid var(--border);
+    color: var(--text3); width: 32px; height: 32px;
+    border-radius: 6px; cursor: pointer; transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .view-btn.active, .view-btn:hover { background: var(--bg3); color: var(--text); border-color: var(--border2); }
+
+  .listings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem; padding: 1.5rem;
+  }
+  .listings-grid.list-view { grid-template-columns: 1fr; }
+
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .card:hover {
+    border-color: var(--border2);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+  }
+  .card-img {
+    height: 180px; overflow: hidden;
+    position: relative;
+    background: var(--bg3);
+  }
+  .card-img-inner {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 3rem;
+  }
+  /* Illustrated building thumbnails */
+  .thumb-pg {
+    background: linear-gradient(135deg, #1a1f2e 0%, #0d1117 100%);
+  }
+  .thumb-hostel {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  }
+  .thumb-govt {
+    background: linear-gradient(135deg, #0a1628 0%, #071020 100%);
+  }
+  .card-badges {
+    position: absolute; top: 10px; left: 10px;
+    display: flex; gap: 6px; flex-wrap: wrap;
+  }
+  .badge {
+    font-size: 11px; font-weight: 600;
+    padding: 3px 9px; border-radius: 99px;
+    backdrop-filter: blur(8px);
+  }
+  .badge-type-pg { background: var(--accentbg); color: var(--accent); border: 1px solid rgba(249,115,22,0.3); }
+  .badge-type-hostel { background: var(--purplebg); color: var(--purple); border: 1px solid rgba(168,85,247,0.3); }
+  .badge-type-govt { background: var(--tealbg); color: var(--teal); border: 1px solid rgba(14,165,233,0.3); }
+  .badge-verified { background: rgba(34,197,94,0.15); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
+  .badge-women { background: rgba(236,72,153,0.15); color: #ec4899; border: 1px solid rgba(236,72,153,0.3); }
+  .card-wishlist {
+    position: absolute; top: 10px; right: 10px;
+    width: 32px; height: 32px; border-radius: 50%;
+    background: rgba(13,17,23,0.7); backdrop-filter: blur(8px);
+    border: 1px solid var(--border2);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.15s; font-size: 15px;
+    color: var(--text2);
+  }
+  .card-wishlist:hover, .card-wishlist.saved { color: #ef4444; }
+
+  .card-body { padding: 1rem; }
+  .card-name {
+    font-size: 15px; font-weight: 600; color: var(--text);
+    margin-bottom: 4px; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .card-location {
+    font-size: 13px; color: var(--text3);
+    display: flex; align-items: center; gap: 5px;
+    margin-bottom: 10px;
+  }
+  .card-price-row {
+    display: flex; align-items: baseline; gap: 6px;
+    margin-bottom: 10px;
+  }
+  .price { font-family: 'Fraunces', serif; font-size: 1.3rem; font-weight: 700; color: var(--text); }
+  .price-period { font-size: 12px; color: var(--text3); }
+  .price-type { font-size: 11px; color: var(--text3); }
+  .card-amenities { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+  .amenity {
+    font-size: 11px; color: var(--text3);
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    padding: 3px 8px; border-radius: 4px;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .card-footer {
+    display: flex; align-items: center; justify-content: space-between;
+    border-top: 1px solid var(--border);
+    padding-top: 10px; margin-top: 2px;
+  }
+  .rating { display: flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 500; color: var(--amber); }
+  .review-count { font-size: 12px; color: var(--text3); font-weight: 400; }
+  .contact-btn {
+    font-size: 12px; font-weight: 500;
+    background: var(--accentbg); color: var(--accent);
+    border: 1px solid rgba(249,115,22,0.3);
+    padding: 5px 12px; border-radius: 6px;
+    cursor: pointer; transition: all 0.15s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .contact-btn:hover { background: var(--accent); color: #fff; }
+  .no-results {
+    padding: 4rem 2rem; text-align: center;
+    color: var(--text3);
+  }
+  .no-results svg { margin-bottom: 1rem; opacity: 0.4; }
+
+  /* ══════════════ DETAIL PAGE ══════════════ */
+  .detail-page { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+  .detail-back {
+    font-size: 14px; color: var(--text2);
+    display: flex; align-items: center; gap: 6px;
+    cursor: pointer; margin-bottom: 1.5rem;
+    transition: color 0.15s; background: none; border: none;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .detail-back:hover { color: var(--accent); }
+  .detail-grid { display: grid; grid-template-columns: 1fr 380px; gap: 2rem; align-items: start; }
+  .detail-left { display: flex; flex-direction: column; gap: 1.5rem; }
+  .detail-gallery {
+    height: 320px; border-radius: var(--radius-lg);
+    background: var(--bg2); overflow: hidden;
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid var(--border);
+  }
+  .gallery-icon { font-size: 5rem; }
+  .detail-header-block { display: flex; flex-direction: column; gap: 0.5rem; }
+  .detail-title {
+    font-family: 'Fraunces', serif;
+    font-size: 1.75rem; font-weight: 700;
+  }
+  .detail-meta { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .detail-rating { display: flex; align-items: center; gap: 6px; }
+  .stars { color: var(--amber); letter-spacing: 2px; }
+  .detail-section { display: flex; flex-direction: column; gap: 0.75rem; }
+  .section-title { font-size: 13px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; }
+  .amenities-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .amenity-item {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 10px 12px;
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: var(--text2);
+  }
+  .amenity-icon { font-size: 18px; }
+  .rules-list { display: flex; flex-direction: column; gap: 8px; }
+  .rule-item { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text2); }
+  .rule-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+
+  /* Booking / Contact Card */
+  .detail-right { position: sticky; top: 80px; display: flex; flex-direction: column; gap: 1rem; }
+  .contact-card {
+    background: var(--bg2); border: 1px solid var(--border2);
+    border-radius: var(--radius-xl); padding: 1.5rem;
+    display: flex; flex-direction: column; gap: 1.25rem;
+  }
+  .price-big { display: flex; align-items: baseline; gap: 8px; }
+  .price-main { font-family: 'Fraunces', serif; font-size: 2rem; font-weight: 700; }
+  .contact-divider { border: none; border-top: 1px solid var(--border); }
+  .owner-row { display: flex; align-items: center; gap: 12px; }
+  .owner-avatar {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--accentbg); color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600; font-size: 16px; flex-shrink: 0;
+  }
+  .owner-name { font-weight: 500; font-size: 15px; }
+  .owner-label { font-size: 12px; color: var(--text3); }
+  .contact-actions { display: flex; flex-direction: column; gap: 8px; }
+  .action-btn {
+    width: 100%; padding: 12px;
+    border-radius: var(--radius); border: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .action-btn.primary { background: var(--accent); color: #fff; }
+  .action-btn.primary:hover { background: var(--accent2); }
+  .action-btn.outline { background: none; color: var(--teal); border: 1px solid rgba(14,165,233,0.3); }
+  .action-btn.outline:hover { background: var(--tealbg); }
+  .action-btn.whatsapp { background: rgba(37,211,102,0.12); color: #25d366; border: 1px solid rgba(37,211,102,0.3); }
+  .action-btn.whatsapp:hover { background: rgba(37,211,102,0.2); }
+  .availability-row {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 13px;
+  }
+  .avail-label { color: var(--text3); }
+  .avail-status { color: var(--green); font-weight: 500; display: flex; align-items: center; gap: 5px; }
+  .avail-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+
+  /* ══════════════ GOVT PAGE ══════════════ */
+  .govt-page { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+  .page-header { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 2rem; }
+  .page-title { font-family: 'Fraunces', serif; font-size: 2rem; font-weight: 700; }
+  .page-sub { font-size: 15px; color: var(--text2); }
+  .govt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.25rem; }
+  .govt-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 1.25rem;
+    display: flex; flex-direction: column; gap: 0.75rem;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .govt-card:hover { border-color: var(--teal); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(14,165,233,0.1); }
+  .govt-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+  .govt-icon {
+    width: 44px; height: 44px; border-radius: var(--radius);
+    background: var(--tealbg); color: var(--teal);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; flex-shrink: 0;
+  }
+  .govt-name { font-weight: 600; font-size: 15px; line-height: 1.3; }
+  .govt-org { font-size: 12px; color: var(--text3); margin-top: 2px; }
+  .govt-details { display: flex; flex-direction: column; gap: 6px; }
+  .govt-detail-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text2); }
+  .govt-eligibility { display: flex; flex-wrap: wrap; gap: 5px; }
+  .govt-card-footer {
+    border-top: 1px solid var(--border); padding-top: 10px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .free-badge { background: var(--greenbg); color: var(--green); font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 99px; border: 1px solid rgba(34,197,94,0.3); }
+  .apply-link { font-size: 13px; color: var(--teal); cursor: pointer; display: flex; align-items: center; gap: 4px; }
+  .apply-link:hover { text-decoration: underline; }
+
+  /* ══════════════ TOAST ══════════════ */
+  .toast {
+    position: fixed; bottom: 2rem; right: 2rem; z-index: 999;
+    background: var(--bg2); border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 12px 20px;
+    font-size: 14px; color: var(--text);
+    box-shadow: var(--shadow);
+    display: flex; align-items: center; gap: 10px;
+    transform: translateY(100px); opacity: 0;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+
+  /* ══════════════ MOBILE NAV ══════════════ */
+  .mobile-nav { display: none; }
+
+  /* ══════════════ MODAL ══════════════ */
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(6px);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+  .modal {
+    background: var(--bg2); border: 1px solid var(--border2);
+    border-radius: var(--radius-xl); padding: 1.75rem;
+    width: 100%; max-width: 440px;
+    transform: scale(0.95) translateY(10px);
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .modal-overlay.open .modal { transform: scale(1) translateY(0); }
+  .modal-title { font-family: 'Fraunces', serif; font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem; }
+  .modal-body { display: flex; flex-direction: column; gap: 1rem; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-label { font-size: 13px; font-weight: 500; color: var(--text2); }
+  .form-input {
+    background: var(--bg3); border: 1px solid var(--border2);
+    color: var(--text); font-family: 'DM Sans', sans-serif;
+    font-size: 14px; padding: 10px 14px; border-radius: var(--radius);
+    outline: none; transition: border-color 0.15s; width: 100%;
+  }
+  .form-input:focus { border-color: var(--accent); }
+  .modal-actions { display: flex; gap: 8px; margin-top: 0.5rem; }
+  .modal-actions button { flex: 1; }
+
+  /* ══════════════ AREA GUIDE ══════════════ */
+  .areas-page { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+  .area-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
+  .area-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 1.25rem;
+    cursor: pointer; transition: all 0.2s;
+    display: flex; flex-direction: column; gap: 0.5rem;
+  }
+  .area-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .area-emoji { font-size: 2rem; margin-bottom: 0.25rem; }
+  .area-name { font-weight: 600; font-size: 15px; }
+  .area-desc { font-size: 13px; color: var(--text3); line-height: 1.5; }
+  .area-tags { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 4px; }
+  .area-tag { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: var(--bg3); color: var(--text3); border: 1px solid var(--border); }
+  .area-price { font-size: 13px; color: var(--accent); font-weight: 500; margin-top: 4px; }
+
+  /* Map tab inside explore */
+  .map-tab {
+    background: var(--bg2); display: flex; align-items: center; justify-content: center;
+    flex: 1; position: relative;
+  }
+  .fullmap { width: 100%; height: 100%; position: relative; overflow: hidden; }
+
+  /* Separator */
+  hr.sep { border: none; border-top: 1px solid var(--border); }
+
+  @media (max-width: 900px) {
+    .hero { grid-template-columns: 1fr; }
+    .hero-right { display: none; }
+    .hero-left { padding: 3rem 1.5rem; }
+    .explore-layout { grid-template-columns: 1fr; }
+    .filters-panel { display: none; }
+    .detail-grid { grid-template-columns: 1fr; }
+    .detail-right { position: static; }
+    .mobile-nav { display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 90; background: var(--bg2); border-top: 1px solid var(--border); padding: 8px 0; justify-content: space-around; }
+    .mnav-btn { display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: none; color: var(--text3); font-size: 10px; font-family: 'DM Sans', sans-serif; cursor: pointer; padding: 4px 12px; }
+    .mnav-btn.active { color: var(--accent); }
+    .mnav-btn svg { font-size: 20px; }
+  }
+
+  /* ── LEAFLET MAP DARK INTEGRATION ── */
+  .dark-map .leaflet-tile {
+    filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+  }
+  .dark-map .leaflet-container {
+    background: var(--bg3) !important;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .dark-map .leaflet-popup-content-wrapper,
+  .dark-map .leaflet-popup-tip {
+    background: var(--bg2);
+    color: var(--text);
+    border: 1px solid var(--border2);
+  }
+  .dark-map .leaflet-popup-content {
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  /* Hide the text instructions box for Leaflet Routing Machine */
+  .leaflet-routing-container {
+    display: none !important;
+  }
+  
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(14, 165, 233, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="logo" href="#" onclick="showView('home')">
+    Stay<span class="logo-dot">Finder</span>
+    <span class="logo-badge">BETA</span>
+  </a>
+  <nav id="desktop-nav" style="display: flex; align-items: center; gap: 8px;">
+    <button class="nav-link active" data-nav="home" onclick="showView('home')">Home</button>
+    <button class="nav-link" data-nav="explore" onclick="showView('explore')">Explore</button>
+    <button class="nav-link" data-nav="areas" onclick="showView('areas')">Area Guide</button>
+    <button class="nav-link" data-nav="govt" onclick="showView('govt')">Govt Hostels</button>
+    <span id="nav-user-greeting" style="display: none; font-size: 14px; color: var(--text2); margin-left: 12px; margin-right: 8px;">Hi, <strong id="nav-username" style="color: var(--text)"></strong></span>
+    <button class="btn-secondary" id="nav-auth-btn" onclick="openModal('authModal')">Login</button>
+    <button class="btn-secondary" id="nav-logout-btn" onclick="logoutUser()" style="display: none;">Logout</button>
+    <button class="btn-primary" onclick="handleListProperty()">List Your Property</button>
+  </nav>
+</header>
+
+<!-- ══════════════ HOME VIEW ══════════════ -->
+<div id="view-home" class="view active">
+  <section class="hero">
+    <div class="hero-left">
+      <span class="hero-eyebrow">Bengaluru & Beyond</span>
+      <h1 class="hero-title">Find your <em>perfect</em> stay, without the broker</h1>
+      <p class="hero-sub">Discover PGs, private hostels, and government-run accommodation across Bengaluru. Compare prices, facilities, and reviews — all in one place.</p>
+      <div class="hero-search">
+        <div class="search-row">
+          <div class="search-field" style="flex:1.4">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            <input class="search-input" id="loc-input" placeholder="Area, college or office..." value="Koramangala, Bengaluru"/>
+          </div>
+          <div class="search-field" style="flex:1">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/></svg>
+            <select class="search-input" style="cursor:pointer">
+              <option>Any type</option>
+              <option>PG</option>
+              <option>Private Hostel</option>
+              <option>Govt Hostel</option>
+            </select>
+          </div>
+        </div>
+        <div class="search-row">
+          <div class="search-field" style="flex:1">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            <select class="search-input" style="cursor:pointer">
+              <option>Any budget</option>
+              <option>Under ₹5,000</option>
+              <option>₹5,000 – ₹10,000</option>
+              <option>₹10,000 – ₹20,000</option>
+              <option>₹20,000+</option>
+            </select>
+          </div>
+          <div class="search-field" style="flex:1">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+            <select class="search-input" style="cursor:pointer">
+              <option>Any gender</option>
+              <option>Men</option>
+              <option>Women</option>
+              <option>Co-ed</option>
+            </select>
+          </div>
+          <button class="search-btn" onclick="showView('explore')">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            Search
+          </button>
+        </div>
+      </div>
+      <div class="hero-stats">
+        <div class="stat"><span class="stat-num">1,200+</span><span class="stat-label">Listed properties</span></div>
+        <div class="stat"><span class="stat-num">48</span><span class="stat-label">Govt hostels</span></div>
+        <div class="stat"><span class="stat-num">24</span><span class="stat-label">Areas covered</span></div>
+        <div class="stat"><span class="stat-num">4.8★</span><span class="stat-label">Avg rating</span></div>
+      </div>
+    </div>
+    <div class="hero-right">
+      <div class="map-bg" id="heroMap"></div>
+    </div>
+  </section>
+
+  <!-- Quick Area Chips -->
+  <section style="padding: 3rem 4rem; border-top: 1px solid var(--border);">
+    <p style="font-size:13px;color:var(--text3);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:1rem;">Popular areas in Bengaluru</p>
+    <div style="display:flex;flex-wrap:wrap;gap:10px">
+      <button class="chip active" onclick="filterByArea('Koramangala')">📍 Koramangala</button>
+      <button class="chip" onclick="filterByArea('Whitefield')">📍 Whitefield</button>
+      <button class="chip" onclick="filterByArea('HSR Layout')">📍 HSR Layout</button>
+      <button class="chip" onclick="filterByArea('Indiranagar')">📍 Indiranagar</button>
+      <button class="chip" onclick="filterByArea('Marathahalli')">📍 Marathahalli</button>
+      <button class="chip" onclick="filterByArea('Electronic City')">📍 Electronic City</button>
+      <button class="chip" onclick="filterByArea('BTM Layout')">📍 BTM Layout</button>
+      <button class="chip" onclick="filterByArea('Jayanagar')">📍 Jayanagar</button>
+      <button class="chip" onclick="filterByArea('Hebbal')">📍 Hebbal</button>
+      <button class="chip" onclick="filterByArea('Bannerghatta Road')">📍 Bannerghatta Road</button>
+    </div>
+  </section>
+
+  <!-- Type Quick Links -->
+  <section style="padding: 0 4rem 4rem; display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem;">
+    <div onclick="filterByType('PG')" style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-xl);padding:1.75rem;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+      <div style="font-size:2rem;margin-bottom:.75rem">🏠</div>
+      <div style="font-weight:600;font-size:1rem;margin-bottom:.3rem">PG Accommodations</div>
+      <div style="font-size:13px;color:var(--text3);line-height:1.5">Paying guest rooms with meals, Wi-Fi & amenities. Most popular for students & IT workers.</div>
+      <div style="margin-top:1rem;font-size:13px;color:var(--accent)">Starting ₹4,500/mo →</div>
+    </div>
+    <div onclick="filterByType('Private Hostel')" style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-xl);padding:1.75rem;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--purple)'" onmouseout="this.style.borderColor='var(--border)'">
+      <div style="font-size:2rem;margin-bottom:.75rem">🏢</div>
+      <div style="font-weight:600;font-size:1rem;margin-bottom:.3rem">Private Hostels</div>
+      <div style="font-size:13px;color:var(--text3);line-height:1.5">Dorm & private rooms in professionally managed facilities. Great for short & long stays.</div>
+      <div style="margin-top:1rem;font-size:13px;color:var(--purple)">Starting ₹3,500/mo →</div>
+    </div>
+    <div onclick="showView('govt')" style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-xl);padding:1.75rem;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--teal)'" onmouseout="this.style.borderColor='var(--border)'">
+      <div style="font-size:2rem;margin-bottom:.75rem">🏛️</div>
+      <div style="font-weight:600;font-size:1rem;margin-bottom:.3rem">Government Hostels</div>
+      <div style="font-size:13px;color:var(--text3);line-height:1.5">Subsidized or free hostels for SC/ST, OBC, minorities & other eligible categories.</div>
+      <div style="margin-top:1rem;font-size:13px;color:var(--teal)">Often free or subsidized →</div>
+    </div>
+  </section>
+</div>
+
+<!-- ══════════════ EXPLORE VIEW ══════════════ -->
+<div id="view-explore" class="view">
+  <div style="padding: 1rem 1.5rem 0; max-width: 1400px; margin: 0 auto;">
+    <button class="detail-back" onclick="showView('home')">← Back to Home</button>
+  </div>
+  <div class="explore-layout">
+    <aside class="filters-panel">
+      <div class="filter-section">
+        <div class="search-in-filter">
+          <svg width="15" height="15" fill="none" stroke="var(--text3)" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input placeholder="Search by name or area..." id="searchFilter" oninput="renderListings()">
+        </div>
+      </div>
+
+      <div class="filter-section">
+        <div class="filter-title">Accommodation Type</div>
+        <div class="filter-chips">
+          <button class="chip active" data-group="type" data-val="All" onclick="toggleFilter(this,'type')">All</button>
+          <button class="chip" data-group="type" data-val="PG" onclick="toggleFilter(this,'type')">PG</button>
+          <button class="chip" data-group="type" data-val="Private Hostel" onclick="toggleFilter(this,'type')">Private Hostel</button>
+          <button class="chip teal" data-group="type" data-val="Govt Hostel" onclick="toggleFilter(this,'type')">Govt Hostel</button>
+        </div>
+      </div>
+
+      <div class="filter-section">
+        <div class="filter-title">Gender</div>
+        <div class="filter-chips">
+          <button class="chip active" data-group="gender" data-val="All" onclick="toggleFilter(this,'gender')">All</button>
+          <button class="chip" data-group="gender" data-val="Men" onclick="toggleFilter(this,'gender')">Men</button>
+          <button class="chip" data-group="gender" data-val="Women" onclick="toggleFilter(this,'gender')">Women</button>
+          <button class="chip" data-group="gender" data-val="Co-ed" onclick="toggleFilter(this,'gender')">Co-ed</button>
+        </div>
+      </div>
+
+      <div class="filter-section">
+        <div class="filter-title">Budget (per month)</div>
+        <div class="range-wrap">
+          <div class="range-labels">
+            <span>₹0</span>
+            <span class="range-val" id="budgetVal">Up to ₹25,000</span>
+          </div>
+          <input type="range" min="3000" max="30000" step="500" value="25000" id="budgetRange" oninput="updateBudget(this.value)">
+        </div>
+      </div>
+
+      <div class="filter-section">
+        <div class="filter-title">Distance from Live Location</div>
+        <div class="filter-chips">
+          <button class="chip active" data-group="distance" data-val="Any" onclick="toggleDistanceFilter('Any', this)">Any</button>
+          <button class="chip" data-group="distance" data-val="2" onclick="toggleDistanceFilter(2, this)">Within 2 km</button>
+          <button class="chip" data-group="distance" data-val="5" onclick="toggleDistanceFilter(5, this)">Within 5 km</button>
+          <button class="chip" data-group="distance" data-val="10" onclick="toggleDistanceFilter(10, this)">Within 10 km</button>
+          <button class="chip" data-group="distance" data-val="20" onclick="toggleDistanceFilter(20, this)">Within 20 km</button>
+        </div>
+        <div id="liveLocationStatusText" style="font-size:11px;color:var(--teal);margin-top:4px;display:none;"></div>
+      </div>
+
+      <div class="filter-section">
+        <div class="filter-title">Area</div>
+        <div class="filter-chips" id="areaChips">
+          <button class="chip active" data-group="area" data-val="All" onclick="toggleFilter(this,'area')">All Areas</button>
+          <button class="chip" data-group="area" data-val="Koramangala" onclick="toggleFilter(this,'area')">Koramangala</button>
+          <button class="chip" data-group="area" data-val="Whitefield" onclick="toggleFilter(this,'area')">Whitefield</button>
+          <button class="chip" data-group="area" data-val="HSR Layout" onclick="toggleFilter(this,'area')">HSR Layout</button>
+          <button class="chip" data-group="area" data-val="Indiranagar" onclick="toggleFilter(this,'area')">Indiranagar</button>
+          <button class="chip" data-group="area" data-val="Marathahalli" onclick="toggleFilter(this,'area')">Marathahalli</button>
+          <button class="chip" data-group="area" data-val="Electronic City" onclick="toggleFilter(this,'area')">Electronic City</button>
+          <button class="chip" data-group="area" data-val="BTM Layout" onclick="toggleFilter(this,'area')">BTM Layout</button>
+          <button class="chip" data-group="area" data-val="Jayanagar" onclick="toggleFilter(this,'area')">Jayanagar</button>
+        </div>
+      </div>
+
+      <div class="filter-section">
+        <div class="filter-title">Amenities</div>
+        <div class="filter-chips">
+          <button class="chip" data-group="amenity" data-val="WiFi" onclick="toggleFilter(this,'amenity')">📶 WiFi</button>
+          <button class="chip" data-group="amenity" data-val="Meals" onclick="toggleFilter(this,'amenity')">🍽️ Meals</button>
+          <button class="chip" data-group="amenity" data-val="AC" onclick="toggleFilter(this,'amenity')">❄️ AC</button>
+          <button class="chip" data-group="amenity" data-val="Laundry" onclick="toggleFilter(this,'amenity')">👕 Laundry</button>
+          <button class="chip" data-group="amenity" data-val="Gym" onclick="toggleFilter(this,'amenity')">💪 Gym</button>
+          <button class="chip" data-group="amenity" data-val="Parking" onclick="toggleFilter(this,'amenity')">🚗 Parking</button>
+          <button class="chip" data-group="amenity" data-val="CCTV" onclick="toggleFilter(this,'amenity')">📷 CCTV</button>
+          <button class="chip" data-group="amenity" data-val="Power Backup" onclick="toggleFilter(this,'amenity')">🔋 Power Backup</button>
+        </div>
+      </div>
+
+      <div class="filter-section">
+        <div class="filter-title">Sharing</div>
+        <div class="filter-chips">
+          <button class="chip active" data-group="sharing" data-val="All" onclick="toggleFilter(this,'sharing')">Any</button>
+          <button class="chip" data-group="sharing" data-val="Single" onclick="toggleFilter(this,'sharing')">Single</button>
+          <button class="chip" data-group="sharing" data-val="Double" onclick="toggleFilter(this,'sharing')">Double</button>
+          <button class="chip" data-group="sharing" data-val="Triple" onclick="toggleFilter(this,'sharing')">Triple</button>
+          <button class="chip" data-group="sharing" data-val="Dorm" onclick="toggleFilter(this,'sharing')">Dorm</button>
+        </div>
+      </div>
+
+      <button onclick="resetFilters()" style="background:none;border:1px solid var(--border);color:var(--text3);font-family:'DM Sans',sans-serif;font-size:13px;padding:8px;border-radius:var(--radius);cursor:pointer;transition:all .15s;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text3)'">
+        ↺ Reset all filters
+      </button>
+    </aside>
+
+    <main class="listings-panel" id="listingsPanel">
+      <div class="listings-header">
+        <span class="results-count"><strong id="countDisp">0</strong> properties found</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <select class="sort-select" id="sortSelect" onchange="renderListings()">
+            <option value="rating">Sort: Rating</option>
+            <option value="distance-asc" id="optSortDistance" style="display:none;">Distance: Nearest First</option>
+            <option value="price-asc">Price: Low to High</option>
+            <option value="price-desc">Price: High to Low</option>
+            <option value="newest">Newest First</option>
+          </select>
+          <div class="view-toggle">
+            <button class="view-btn active" id="gridBtn" onclick="setListView('grid')" title="Grid view">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            </button>
+            <button class="view-btn" id="listBtn" onclick="setListView('list')" title="List view">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="listings-grid" id="listingsGrid"></div>
+    </main>
+  </div>
+</div>
+
+<!-- ══════════════ DETAIL VIEW ══════════════ -->
+<div id="view-detail" class="view">
+  <div class="detail-page" id="detailContent"></div>
+</div>
+
+<!-- ══════════════ GOVT VIEW ══════════════ -->
+<div id="view-govt" class="view">
+  <div class="govt-page">
+    <button class="detail-back" onclick="showView('home')">← Back to Home</button>
+    <div class="page-header">
+      <h1 class="page-title">Government Hostels in Karnataka</h1>
+      <p class="page-sub">Subsidized and free accommodation for eligible students and working professionals. Apply directly through official portals.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1.5rem">
+      <button class="chip active" data-group="gtype" data-val="All" onclick="filterGovt(this)">All</button>
+      <button class="chip teal" data-group="gtype" data-val="SC/ST" onclick="filterGovt(this)">SC/ST</button>
+      <button class="chip" data-group="gtype" data-val="OBC" onclick="filterGovt(this)">OBC</button>
+      <button class="chip" data-group="gtype" data-val="Minority" onclick="filterGovt(this)">Minority</button>
+      <button class="chip" data-group="gtype" data-val="Women" onclick="filterGovt(this)">Women</button>
+      <button class="chip" data-group="gtype" data-val="Labour" onclick="filterGovt(this)">Labour Dept</button>
+    </div>
+    <div class="govt-grid" id="govtGrid"></div>
+  </div>
+</div>
+
+<!-- ══════════════ AREAS VIEW ══════════════ -->
+<div id="view-areas" class="view">
+  <div class="areas-page">
+    <button class="detail-back" onclick="showView('home')">← Back to Home</button>
+    <div class="page-header">
+      <h1 class="page-title">Bengaluru Area Guide</h1>
+      <p class="page-sub">Know your neighbourhood before you move. Average rents, proximity to tech parks, colleges & safety ratings.</p>
+    </div>
+    <div class="area-cards" id="areaGrid"></div>
+  </div>
+</div>
+
+<!-- ══════════════ MODALS ══════════════ -->
+<div class="modal-overlay" id="authModal">
+  <div class="modal">
+    <div class="modal-title" id="authModalTitle">Login to StayFinder</div>
+    <div class="modal-body">
+      <!-- Login Section -->
+      <div id="login-section">
+        <form id="loginForm" onsubmit="handleLogin(event)">
+          <div class="form-group">
+            <label class="form-label">Email Address</label>
+            <input class="form-input" type="email" id="login-email" required placeholder="e.g. test@user.com">
+          </div>
+          <div class="form-group" style="margin-top: 12px;">
+            <label class="form-label">Password</label>
+            <input class="form-input" type="password" id="login-password" required placeholder="••••••••">
+          </div>
+          <div style="margin-top: 16px;">
+            <button class="btn-primary" type="submit" style="width: 100%; padding: 12px;">Login</button>
+          </div>
+        </form>
+        <p style="font-size: 13px; text-align: center; color: var(--text3); margin-top: 16px;">
+          Don't have an account? <a href="#" onclick="event.preventDefault();toggleAuthMode('register')" style="color: var(--accent); text-decoration: none; font-weight: 500;">Sign Up</a>
+        </p>
+      </div>
+
+      <!-- Register Section (Hidden by default) -->
+      <div id="register-section" style="display: none;">
+        <form id="registerForm" onsubmit="handleRegister(event)">
+          <div class="form-group">
+            <label class="form-label">Full Name</label>
+            <input class="form-input" type="text" id="reg-name" required placeholder="e.g. John Doe">
+          </div>
+          <div class="form-group" style="margin-top: 12px;">
+            <label class="form-label">Email Address</label>
+            <input class="form-input" type="email" id="reg-email" required placeholder="e.g. john@example.com">
+          </div>
+          <div class="form-group" style="margin-top: 12px;">
+            <label class="form-label">Phone Number</label>
+            <input class="form-input" type="tel" id="reg-phone" placeholder="e.g. +91 9845012345">
+          </div>
+          <div class="form-group" style="margin-top: 12px;">
+            <label class="form-label">I am a...</label>
+            <select class="form-input" id="reg-role" style="cursor: pointer;">
+              <option value="user">Student / Seeker</option>
+              <option value="owner">Property Owner / Host</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-top: 12px;">
+            <label class="form-label">Password (Min 8 chars)</label>
+            <input class="form-input" type="password" id="reg-password" required minlength="8" placeholder="••••••••">
+          </div>
+          <div style="margin-top: 16px;">
+            <button class="btn-primary" type="submit" style="width: 100%; padding: 12px;">Create Account</button>
+          </div>
+        </form>
+        <p style="font-size: 13px; text-align: center; color: var(--text3); margin-top: 16px;">
+          Already have an account? <a href="#" onclick="event.preventDefault();toggleAuthMode('login')" style="color: var(--accent); text-decoration: none; font-weight: 500;">Login</a>
+        </p>
+      </div>
+    </div>
+    <div class="modal-actions" style="margin-top: 16px;">
+      <button class="btn-secondary" onclick="closeModal('authModal')" style="width: 100%;">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="contactModal">
+  <div class="modal">
+    <div class="modal-title">Contact Owner</div>
+    <div class="modal-body">
+      <div style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--bg3);border-radius:var(--radius)">
+        <div style="width:40px;height:40px;border-radius:50%;background:var(--accentbg);color:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:600">R</div>
+        <div><div style="font-weight:500" id="contactOwnerName">Ramesh Kumar</div><div style="font-size:12px;color:var(--text3)">Verified Owner · Responds in ~2 hrs</div></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Your Name</label>
+        <input class="form-input" placeholder="Enter your full name">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Phone Number</label>
+        <input class="form-input" placeholder="+91 98xxx xxxxx" type="tel">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Message</label>
+        <textarea class="form-input" rows="3" placeholder="Hi, I'm interested in your property..."></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('contactModal')">Cancel</button>
+      <button class="btn-primary" onclick="sendContact()">Send Message</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="listModal">
+  <div class="modal">
+    <div class="modal-title">List Your Property</div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Property Name</label>
+        <input class="form-input" placeholder="e.g., Sharma Boys PG">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Type</label>
+        <select class="form-input" style="cursor:pointer">
+          <option>PG</option><option>Private Hostel</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Area / Locality</label>
+        <input class="form-input" placeholder="e.g., Koramangala 5th Block">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Starting Rent (₹/month)</label>
+        <input class="form-input" type="number" placeholder="5000">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Your Phone Number</label>
+        <input class="form-input" placeholder="+91" type="tel">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('listModal')">Cancel</button>
+      <button class="btn-primary" onclick="submitListing()">Submit Listing</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">
+  <span class="toast-dot"></span>
+  <span id="toastMsg">Action completed</span>
+</div>
+
+<!-- Mobile Nav -->
+<nav class="mobile-nav">
+  <button class="mnav-btn active" onclick="showView('home')">
+    <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    Home
+  </button>
+  <button class="mnav-btn" onclick="showView('explore')">
+    <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    Search
+  </button>
+  <button class="mnav-btn" onclick="showView('areas')">
+    <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+    Areas
+  </button>
+  <button class="mnav-btn" onclick="showView('govt')">
+    <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><line x1="3" y1="22" x2="21" y2="22"/><rect x="2" y="9" width="20" height="13" rx="1"/><path d="M12 2 L2 9 L22 9 Z"/></svg>
+    Govt
+  </button>
+</nav>
+
+<script>
+// ═══════════════ DATA ═══════════════
+const listings = [
+  { id:1, name:'Koramangala Comfort PG', type:'PG', gender:'Men', area:'Koramangala', price:7500, sharing:'Single', amenities:['WiFi','Meals','CCTV','Laundry'], rating:4.7, reviews:128, verified:true, owner:'Ramesh Kumar', ownerInitial:'R', phone:'+91 98450 12345', desc:'Well-maintained PG with homely food and 24/7 security. Walking distance to Wipro and other IT companies.', rules:['No smoking', 'Guests till 10 PM', 'No loud music after 11 PM', 'ID proof mandatory'], emoji:'🏠', nearby:'Wipro, Infosys (2 km)', avail:true, lat:12.9352, lng:77.6245 },
+  { id:2, name:'Sakura Women\'s Hostel', type:'Private Hostel', gender:'Women', area:'Indiranagar', price:9000, sharing:'Double', amenities:['WiFi','AC','Meals','Gym','CCTV'], rating:4.9, reviews:204, verified:true, owner:'Priya Nair', ownerInitial:'P', phone:'+91 87654 32100', desc:'Premium women-only hostel with 24/7 security. Spacious rooms, great food, rooftop common area.', rules:['Women only', 'Guests in common area only', 'Gate closed at 11 PM'], emoji:'🌸', nearby:'100 Feet Road, CMH Road', avail:true, lat:12.9784, lng:77.6408 },
+  { id:3, name:'TechPark Residency', type:'PG', gender:'Co-ed', area:'Whitefield', price:11000, sharing:'Single', amenities:['WiFi','AC','Parking','Power Backup','Laundry'], rating:4.5, reviews:89, verified:true, owner:'Suresh Rao', ownerInitial:'S', phone:'+91 99001 23456', desc:'Premium co-living spaces designed for IT professionals near EPIP Zone and ITPL. High-speed internet guaranteed.', rules:['No pets', 'Visitors in lobby only', 'Quiet hours 10 PM–7 AM'], emoji:'🏢', nearby:'ITPL, EPIP Zone, Mindtree', avail:true, lat:12.9698, lng:77.7500 },
+  { id:4, name:'Namma PG – BTM', type:'PG', gender:'Men', area:'BTM Layout', price:5500, sharing:'Double', amenities:['WiFi','Meals','CCTV'], rating:4.2, reviews:56, verified:false, owner:'Kiran Gowda', ownerInitial:'K', phone:'+91 94480 56789', desc:'Budget-friendly PG in the heart of BTM with good connectivity to Electronic City and Silk Board.', rules:['No alcohol', 'Guests with prior permission', 'ID mandatory'], emoji:'🏘️', nearby:'Silk Board, Meenakshi Mall', avail:true, lat:12.9165, lng:77.6101 },
+  { id:5, name:'HSR Cozy Nest', type:'PG', gender:'Women', area:'HSR Layout', price:8000, sharing:'Single', amenities:['WiFi','Meals','AC','CCTV','Power Backup'], rating:4.6, reviews:143, verified:true, owner:'Anita Sharma', ownerInitial:'A', phone:'+91 76543 21098', desc:'Peaceful women\'s PG in HSR Sector 6. Close to startup offices and Agara Lake. Excellent food quality.', rules:['Women only', 'Gate closes at 10:30 PM', 'No cooking in rooms'], emoji:'🏡', nearby:'HSR BDA Complex, Agara Lake', avail:true, lat:12.9116, lng:77.6474 },
+  { id:6, name:'Marathon Stay – Marathahalli', type:'Private Hostel', gender:'Co-ed', area:'Marathahalli', price:6000, sharing:'Dorm', amenities:['WiFi','Laundry','Power Backup','CCTV'], rating:4.3, reviews:77, verified:true, owner:'David Fernandez', ownerInitial:'D', phone:'+91 82222 33333', desc:'Modern hostel with dorm and private options. Perfect for newcomers to Bengaluru on a budget.', rules:['Check-in till midnight', 'No outside food in rooms', 'Lockers provided'], emoji:'🏨', nearby:'Marathahalli Bridge, Phoenix Mall', avail:true, lat:12.9591, lng:77.6970 },
+  { id:7, name:'Silicon Valley PG', type:'PG', gender:'Men', area:'Electronic City', price:6500, sharing:'Double', amenities:['WiFi','Meals','Gym','Parking','CCTV'], rating:4.4, reviews:91, verified:true, owner:'Manjunath BS', ownerInitial:'M', phone:'+91 80001 44444', desc:'Strategic location near Electronics City Phase 1 & 2. Shuttle service available to major IT parks.', rules:['No alcohol on premises', 'Curfew 11 PM', 'Monthly rent advance'], emoji:'💻', nearby:'Infosys, Wipro, HCL (1.5 km)', avail:false, lat:12.8399, lng:77.6770 },
+  { id:8, name:'Jayanagar Heritage PG', type:'PG', gender:'Co-ed', area:'Jayanagar', price:9500, sharing:'Single', amenities:['WiFi','AC','Meals','Laundry','CCTV'], rating:4.8, reviews:167, verified:true, owner:'Lakshmi Iyer', ownerInitial:'L', phone:'+91 90090 12345', desc:'Upscale PG in the premium Jayanagar 4th Block area. Traditional home-cooked Karnataka cuisine.', rules:['Quiet premises', 'No outside guests after 9 PM', 'Advance 2 months'], emoji:'🏛️', nearby:'Jayanagar Shopping Complex, NIMHANS', avail:true, lat:12.9259, lng:77.5842 },
+  { id:9, name:'Hebbal Connect Hostel', type:'Private Hostel', gender:'Men', area:'Hebbal', price:7000, sharing:'Double', amenities:['WiFi','Meals','Power Backup','Parking'], rating:4.1, reviews:44, verified:false, owner:'Rajesh Babu', ownerInitial:'R', phone:'+91 91011 22222', desc:'Well-connected hostel near Hebbal flyover. Easy access to Manyata Tech Park and airport.', rules:['Monthly contracts only', 'ID mandatory'], emoji:'🔗', nearby:'Manyata Tech Park, Kempegowda Airport (22 km)', avail:true, lat:13.0358, lng:77.5970 },
+  { id:10, name:'Bannerghatta Bliss PG', type:'PG', gender:'Women', area:'Bannerghatta Road', price:7200, sharing:'Single', amenities:['WiFi','AC','Meals','CCTV','Gym'], rating:4.6, reviews:112, verified:true, owner:'Shobha Reddy', ownerInitial:'S', phone:'+91 99944 55555', desc:'Peaceful women\'s PG away from the city hustle. Near JP Nagar and Bannerghatta National Park.', rules:['Women only', 'No night outs without prior info', 'Strict hygiene rules'], emoji:'🌿', nearby:'JP Nagar, Bannerghatta National Park', avail:true, lat:12.8829, lng:77.5985 },
+];
+
+const govtListings = [
+  { id:'g1', name:'Dr. B.R. Ambedkar Scheduled Caste Pre-Matric Boys Hostel', org:'Social Welfare Dept, Karnataka', area:'Chamrajpet, Bengaluru', eligibility:['SC/ST'], cost:'Free', seats:120, contact:'080-2226-0001', apply:'www.sw.kar.nic.in', desc:'Govt-run hostel for SC/ST students studying in classes 9–10. Includes food, lodging & scholarship assistance.', icon:'🏛️' },
+  { id:'g2', name:'KSWDC Working Women\'s Hostel', org:'Dept of Women & Child Development', area:'Sadashivanagar, Bengaluru', eligibility:['Women'], cost:'₹500–₹1,500/month', seats:80, contact:'080-2238-0092', apply:'www.wcd.kar.nic.in', desc:'Subsidized hostel for working women earning under ₹50,000/month. Meals and security included.', icon:'👩' },
+  { id:'g3', name:'OBC Pre-Matric Boys Hostel', org:'Backward Classes Welfare Dept', area:'Rajajinagar, Bengaluru', eligibility:['OBC'], cost:'Free', seats:100, contact:'080-2334-5500', apply:'www.bcwd.kar.nic.in', desc:'Free accommodation for OBC students. Includes meals, study room, library access.', icon:'📚' },
+  { id:'g4', name:'Minorities Welfare Girls Hostel', org:'Dept for Minorities, Karnataka', area:'Shivajinagar, Bengaluru', eligibility:['Minority','Women'], cost:'Free', seats:60, contact:'080-2286-1122', apply:'www.minorities.kar.nic.in', desc:'Free hostel for minority community girls pursuing higher education in Bengaluru.', icon:'🌙' },
+  { id:'g5', name:'Labour Department Workers Hostel', org:'Dept of Labour, Karnataka', area:'Peenya, Bengaluru', eligibility:['Labour'], cost:'₹300/month', seats:200, contact:'080-2239-7700', apply:'www.labour.kar.nic.in', desc:'Heavily subsidized accommodation for registered industrial workers near Peenya Industrial Area.', icon:'⚒️' },
+  { id:'g6', name:'SC/ST Post-Matric Girls Hostel', org:'Social Welfare Dept, Karnataka', area:'Yeshwantpur, Bengaluru', eligibility:['SC/ST','Women'], cost:'Free', seats:90, contact:'080-2347-1200', apply:'www.sw.kar.nic.in', desc:'Free hostel for SC/ST girls enrolled in degree, diploma or ITI courses.', icon:'🎓' },
+  { id:'g7', name:'Valmiki Tribal Development Hostel', org:'Tribal Welfare Dept', area:'Majestic, Bengaluru', eligibility:['SC/ST'], cost:'Free', seats:75, contact:'080-2220-9900', apply:'www.tribal.kar.nic.in', desc:'Dedicated hostel for tribal community students with extra coaching support and career guidance.', icon:'🌿' },
+  { id:'g8', name:'BBMP Working Men\'s Hostel', org:'BBMP, Bengaluru', area:'Multiple locations', eligibility:['Labour','OBC'], cost:'₹800/month', seats:350, contact:'1800-425-0066', apply:'www.bbmp.gov.in', desc:'Municipal hostel spread across 6 zones. Ideal for migrant workers and daily wage earners.', icon:'🏙️' },
+];
+
+const areaData = [
+  { name:'Koramangala', emoji:'⚡', desc:'IT hub with great nightlife. Dense startup culture.', tags:['Startups','Cafés','Nightlife'], priceRange:'₹7,000–₹20,000', safety:'High', connectivity:'Excellent' },
+  { name:'Whitefield', emoji:'💻', desc:'ITPL hub with modern amenities. Best for IT workers.', tags:['IT Park','Metro','Malls'], priceRange:'₹8,000–₹22,000', safety:'High', connectivity:'Good' },
+  { name:'HSR Layout', emoji:'🌟', desc:'Premium layout, planned infrastructure, safe.', tags:['Premium','Green','Safe'], priceRange:'₹8,000–₹18,000', safety:'Very High', connectivity:'Good' },
+  { name:'Indiranagar', emoji:'🎵', desc:'Trendy area with restaurants, pubs and shopping.', tags:['Trendy','Metro','Pubs'], priceRange:'₹9,000–₹25,000', safety:'High', connectivity:'Excellent' },
+  { name:'Marathahalli', emoji:'🛣️', desc:'Well-connected corridor between IT zones.', tags:['Budget','Connectivity','Tech'], priceRange:'₹5,500–₹12,000', safety:'Medium', connectivity:'Good' },
+  { name:'Electronic City', emoji:'🏭', desc:'Largest IT park area. Great for Infosys, Wipro employees.', tags:['IT Park','Budget','Far'], priceRange:'₹4,500–₹10,000', safety:'Medium', connectivity:'Fair' },
+  { name:'BTM Layout', emoji:'🧑‍🎓', desc:'Budget-friendly, popular with students. Good connectivity.', tags:['Students','Budget','Busy'], priceRange:'₹4,000–₹9,000', safety:'Medium', connectivity:'Good' },
+  { name:'Jayanagar', emoji:'🏛️', desc:'Residential and peaceful. Great food street nearby.', tags:['Peaceful','Families','Food'], priceRange:'₹7,000–₹18,000', safety:'Very High', connectivity:'Good' },
+  { name:'Hebbal', emoji:'✈️', desc:'Near airport. Manyata Tech Park corridor.', tags:['Airport','Tech Park','Lake'], priceRange:'₹6,000–₹14,000', safety:'High', connectivity:'Good' },
+  { name:'Bannerghatta Road', emoji:'🌿', desc:'Green neighbourhood near national park. Quiet.', tags:['Green','Quiet','Premium'], priceRange:'₹6,500–₹16,000', safety:'High', connectivity:'Fair' },
+  { name:'Rajajinagar', emoji:'🏡', desc:'Well-established residential area, old Bengaluru feel.', tags:['Residential','Old Blr','Metros'], priceRange:'₹5,000–₹12,000', safety:'High', connectivity:'Excellent' },
+  { name:'Yelahanka', emoji:'🌳', desc:'Upcoming area near new airport. Peaceful locality.', tags:['Upcoming','Airport','Peaceful'], priceRange:'₹4,000–₹9,000', safety:'High', connectivity:'Fair' },
+];
+
+// ═══════════════ STATE ═══════════════
+let filters = { type:'All', gender:'All', area:'All', budget:25000, amenities:[], sharing:'All', maxDistance: null, userLocation: null };
+let govtFilter = 'All';
+let isListView = false;
+let savedItems = new Set();
+
+// ═══════════════ VIEWS ═══════════════
+function showView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  if (name === 'explore') renderListings();
+  if (name === 'govt') renderGovt();
+  if (name === 'areas') renderAreas();
+  
+  // Highlight active desktop nav button
+  document.querySelectorAll('.nav-link').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.nav-link[data-nav="${name}"]`)?.classList.add('active');
+
+  // Highlight active mobile nav button
+  document.querySelectorAll('.mnav-btn').forEach(b => b.classList.remove('active'));
+  const map = { home:0, explore:1, areas:2, govt:3 };
+  const idx = map[name];
+  if (idx !== undefined) document.querySelectorAll('.mnav-btn')[idx]?.classList.add('active');
+  window.scrollTo(0,0);
+}
+
+// ═══════════════ MAP ═══════════════
+function buildHeroMap() {
+  const map = document.getElementById('heroMap');
+  if (!map) return;
+  const roads = [
+    { cls:'h major', top:20 }, { cls:'h', top:38 }, { cls:'h major', top:55 },
+    { cls:'h', top:70 }, { cls:'h major', top:85 },
+    { cls:'v major', left:15 }, { cls:'v', left:35 }, { cls:'v major', left:60 }, { cls:'v', left:80 },
+  ];
+  roads.forEach(r => {
+    const d = document.createElement('div');
+    d.className = 'map-road ' + r.cls;
+    if (r.top !== undefined) d.style.top = r.top + '%';
+    if (r.left !== undefined) d.style.left = r.left + '%';
+    map.appendChild(d);
+  });
+  const labels = [
+    { text:'Koramangala', top:'18%', left:'55%' },
+    { text:'Indiranagar', top:'12%', left:'72%' },
+    { text:'BTM Layout', top:'65%', left:'45%' },
+    { text:'Whitefield', top:'30%', left:'15%' },
+    { text:'HSR Layout', top:'75%', left:'62%' },
+  ];
+  labels.forEach(l => {
+    const d = document.createElement('div');
+    d.className = 'map-area-label';
+    d.style.top = l.top; d.style.left = l.left;
+    d.textContent = l.text;
+    map.appendChild(d);
+  });
+  const pins = [
+    { label:'₹7,500', top:'24%', left:'58%', cls:'' },
+    { label:'₹9,000', top:'18%', left:'75%', cls:'' },
+    { label:'₹6,000', top:'70%', left:'50%', cls:'' },
+    { label:'Govt Hostel', top:'35%', left:'25%', cls:'govt' },
+    { label:'₹11,000', top:'28%', left:'18%', cls:'' },
+    { label:'Women\'s PG', top:'42%', left:'68%', cls:'hostel' },
+    { label:'₹5,500', top:'72%', left:'38%', cls:'' },
+  ];
+  pins.forEach(p => {
+    const pin = document.createElement('div');
+    pin.className = 'map-pin';
+    pin.style.top = p.top; pin.style.left = p.left;
+    pin.innerHTML = `<div class="pin-bubble ${p.cls}">${p.label}</div>`;
+    pin.onclick = () => showView('explore');
+    map.appendChild(pin);
+  });
+  const ol = document.createElement('div');
+  ol.className = 'map-overlay';
+  ol.innerHTML = `<div class="map-legend">
+    <span class="legend-item"><span class="legend-dot" style="background:var(--accent)"></span>PG</span>
+    <span class="legend-item"><span class="legend-dot" style="background:var(--purple)"></span>Private Hostel</span>
+    <span class="legend-item"><span class="legend-dot" style="background:var(--teal)"></span>Govt Hostel</span>
+    <span style="margin-left:auto;font-size:12px;color:var(--text3)">Click pins to explore →</span>
+  </div>`;
+  map.appendChild(ol);
+}
+
+// ═══════════════ DETAIL MAP & DIRECTIONS (LEAFLET) ═══════════════
+let detailMapInstance = null;
+let detailMarker = null;
+let routingControl = null;
+
+// Custom CSS icons for maps to keep them premium and lightweight (no broken CDN images)
+const destinationIcon = L.divIcon({
+  html: `<div style="
+    background: var(--accent); 
+    width: 24px; 
+    height: 24px; 
+    border-radius: 50% 50% 50% 0; 
+    transform: rotate(-45deg); 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    border: 2px solid #fff;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+    margin-left: -12px;
+    margin-top: -24px;
+  ">
+    <div style="
+      background: #fff; 
+      width: 8px; 
+      height: 8px; 
+      border-radius: 50%;
+    "></div>
+  </div>`,
+  className: 'custom-marker',
+  iconSize: [24, 24],
+  iconAnchor: [12, 24],
+  popupAnchor: [0, -24]
+});
+
+const liveLocationIcon = L.divIcon({
+  html: `<div style="
+    background: var(--teal); 
+    width: 20px; 
+    height: 20px; 
+    border-radius: 50%; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    border: 2px solid #fff;
+    box-shadow: 0 0 12px var(--teal);
+    animation: pulse 1.5s infinite;
+  ">
+    <div style="
+      background: #fff; 
+      width: 6px; 
+      height: 6px; 
+      border-radius: 50%;
+    "></div>
+  </div>`,
+  className: 'live-marker',
+  iconSize: [20, 20],
+  iconAnchor: [10, 10],
+  popupAnchor: [0, -10]
+});
+
+function initDetailMap(id, lat, lng, name) {
+  if (detailMapInstance) {
+    try {
+      detailMapInstance.remove();
+    } catch (e) {
+      console.warn("Error removing map instance:", e);
+    }
+    detailMapInstance = null;
+  }
+  
+  const mapEl = document.getElementById('detailMap');
+  if (!mapEl) return;
+  
+  const targetLat = lat || 12.9716;
+  const targetLng = lng || 77.5946;
+  
+  // Wait a split second for the DOM layout to settle, avoiding Leaflet rendering grey/misaligned tiles
+  setTimeout(() => {
+    if (!document.getElementById('detailMap')) return;
+    
+    detailMapInstance = L.map('detailMap', {
+      zoomControl: true,
+      scrollWheelZoom: false
+    }).setView([targetLat, targetLng], 14);
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap'
+    }).addTo(detailMapInstance);
+    
+    detailMarker = L.marker([targetLat, targetLng], { icon: destinationIcon })
+      .addTo(detailMapInstance)
+      .bindPopup(`<strong>${name}</strong><br>Destination Accommodation`)
+      .openPopup();
+  }, 100);
+}
+
+async function getDirections(id, destLat, destLng) {
+  const btn = document.getElementById('btnGetDirections');
+  if (!btn) return;
+  
+  btn.textContent = '⏳ Fetching live location...';
+  btn.disabled = true;
+  
+  if (!navigator.geolocation) {
+    showToast("Geolocation is not supported by your browser");
+    btn.textContent = '🚗 Get Directions from Live Location';
+    btn.disabled = false;
+    return;
+  }
+  
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      const userLat = position.coords.latitude;
+      const userLng = position.coords.longitude;
+      
+      btn.textContent = '🚗 Directions Active';
+      showToast("Location loaded! Plotting routes...");
+      
+      const targetDestLat = destLat || 12.9716;
+      const targetDestLng = destLng || 77.5946;
+      
+      if (detailMapInstance) {
+        if (routingControl) {
+          try {
+            detailMapInstance.removeControl(routingControl);
+          } catch(e) {}
+          routingControl = null;
+        }
+        
+        const liveMarker = L.marker([userLat, userLng], { icon: liveLocationIcon, draggable: true })
+          .addTo(detailMapInstance)
+          .bindPopup("<strong>You</strong><br>Your Position (Drag me to adjust!)")
+          .openPopup();
+
+        liveMarker.on('dragend', function(e) {
+          const newPos = e.target.getLatLng();
+          showToast("Position adjusted. Recalculating route...");
+          if (routingControl) {
+            routingControl.setWaypoints([
+              newPos,
+              L.latLng(targetDestLat, targetDestLng)
+            ]);
+          }
+        });
+          
+        routingControl = L.Routing.control({
+          waypoints: [
+            L.latLng(userLat, userLng),
+            L.latLng(targetDestLat, targetDestLng)
+          ],
+          router: L.Routing.osrmv1({
+            serviceUrl: 'https://router.project-osrm.org/route/v1'
+          }),
+          lineOptions: {
+            styles: [{ color: 'var(--accent)', opacity: 0.85, weight: 6 }]
+          },
+          createMarker: function() { return null; },
+          show: false,
+          addWaypoints: false,
+          draggableWaypoints: false,
+          fitSelectedRoutes: true
+        }).addTo(detailMapInstance);
+      }
+      btn.disabled = false;
+    },
+    (error) => {
+      console.error("Location lookup error:", error);
+      showToast("Unable to retrieve location: " + error.message);
+      btn.textContent = '🚗 Get Directions from Live Location';
+      btn.disabled = false;
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  );
+}
+
+// ═══════════════ FILTERS ═══════════════
+function toggleFilter(btn, group) {
+  const val = btn.dataset.val;
+  document.querySelectorAll(`[data-group="${group}"]`).forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (group === 'amenity') {
+    if (filters.amenities.includes(val)) {
+      filters.amenities = filters.amenities.filter(a => a !== val);
+      btn.classList.remove('active');
+    } else {
+      filters.amenities.push(val);
+      btn.classList.add('active');
+    }
+  } else {
+    filters[group] = val;
+  }
+  renderListings();
+}
+
+function updateBudget(v) {
+  filters.budget = parseInt(v);
+  document.getElementById('budgetVal').textContent = 'Up to ₹' + parseInt(v).toLocaleString('en-IN');
+  // update range gradient
+  const pct = ((v - 3000) / (30000 - 3000)) * 100;
+  document.getElementById('budgetRange').style.background =
+    `linear-gradient(to right, var(--accent) 0%, var(--accent) ${pct}%, var(--bg4) ${pct}%)`;
+  renderListings();
+}
+
+function resetFilters() {
+  filters = { type:'All', gender:'All', area:'All', budget:25000, amenities:[], sharing:'All', maxDistance: null, userLocation: null };
+  document.querySelectorAll('.chip').forEach(c => {
+    if (c.dataset.val === 'All' || c.dataset.val === 'Any') c.classList.add('active');
+    else c.classList.remove('active');
+  });
+  document.getElementById('budgetRange').value = 25000;
+  document.getElementById('budgetVal').textContent = 'Up to ₹25,000';
+  document.getElementById('searchFilter').value = '';
+  const statusEl = document.getElementById('liveLocationStatusText');
+  if (statusEl) {
+    statusEl.style.display = 'none';
+    statusEl.textContent = '';
+  }
+  renderListings();
+  showToast('Filters reset');
+}
+
+function toggleDistanceFilter(val, btn) {
+  document.querySelectorAll('[data-group="distance"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  const statusEl = document.getElementById('liveLocationStatusText');
+  const optDist = document.getElementById('optSortDistance');
+  const sortSel = document.getElementById('sortSelect');
+
+  if (val === 'Any') {
+    filters.maxDistance = null;
+    filters.userLocation = null;
+    if (statusEl) {
+      statusEl.style.display = 'none';
+      statusEl.textContent = '';
+    }
+    if (optDist) optDist.style.display = 'none';
+    if (sortSel && sortSel.value === 'distance-asc') {
+      sortSel.value = 'rating';
+    }
+    renderListings();
+    return;
+  }
+
+  if (statusEl) {
+    statusEl.style.display = 'block';
+    statusEl.textContent = '⏳ Querying GPS...';
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+      filters.userLocation = { lat, lng };
+      filters.maxDistance = parseFloat(val);
+      
+      if (statusEl) {
+        statusEl.textContent = `📍 Using live GPS: ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+      }
+      if (optDist) optDist.style.display = 'block';
+      if (sortSel) sortSel.value = 'distance-asc';
+      showToast(`Filtering stays within ${val} km of your location`);
+      renderListings();
+    },
+    (error) => {
+      console.error("GPS retrieval error:", error);
+      showToast("Error getting location: " + error.message);
+      
+      btn.classList.remove('active');
+      const anyBtn = document.querySelector('[data-group="distance"][data-val="Any"]');
+      if (anyBtn) anyBtn.classList.add('active');
+      
+      filters.maxDistance = null;
+      filters.userLocation = null;
+      if (statusEl) {
+        statusEl.style.display = 'none';
+      }
+      if (optDist) optDist.style.display = 'none';
+      if (sortSel && sortSel.value === 'distance-asc') {
+        sortSel.value = 'rating';
+      }
+      renderListings();
+    },
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+  );
+}
+
+function filterByArea(area) {
+  showView('explore');
+  filters.area = area;
+  document.querySelectorAll('[data-group="area"]').forEach(b => {
+    b.classList.toggle('active', b.dataset.val === area);
+  });
+  renderListings();
+}
+
+function filterByType(type) {
+  showView('explore');
+  filters.type = type;
+  document.querySelectorAll('[data-group="type"]').forEach(b => {
+    b.classList.toggle('active', b.dataset.val === type);
+  });
+  renderListings();
+}
+
+// Neighborhood coordinates for distance calculations
+const AREA_COORDINATES = {
+  'Koramangala': { lat: 12.9352, lng: 77.6245 },
+  'Whitefield': { lat: 12.9698, lng: 77.7500 },
+  'HSR Layout': { lat: 12.9116, lng: 77.6474 },
+  'Indiranagar': { lat: 12.9784, lng: 77.6408 },
+  'Marathahalli': { lat: 12.9591, lng: 77.6970 },
+  'Electronic City': { lat: 12.8399, lng: 77.6770 },
+  'BTM Layout': { lat: 12.9165, lng: 77.6101 },
+  'Jayanagar': { lat: 12.9259, lng: 77.5842 },
+  'Hebbal': { lat: 13.0358, lng: 77.5970 },
+  'Bannerghatta Road': { lat: 12.8829, lng: 77.5985 },
+  'Rajajinagar': { lat: 12.9760, lng: 77.5583 },
+  'Yelahanka': { lat: 13.1007, lng: 77.5963 }
+};
+
+// Haversine formula to compute distance in km
+function getDistanceKm(lat1, lon1, lat2, lon2) {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
+// Find matching reference neighborhood based on search queries
+function getSelectedRefArea(searchVal) {
+  if (filters.area && filters.area !== 'All') {
+    return filters.area;
+  }
+  if (searchVal) {
+    const s = searchVal.toLowerCase();
+    for (const name of Object.keys(AREA_COORDINATES)) {
+      if (name.toLowerCase().includes(s) || s.includes(name.toLowerCase())) {
+        return name;
+      }
+    }
+  }
+  return null;
+}
+
+// ═══════════════ RENDER LISTINGS ═══════════════
+function renderListings() {
+  let data = listings.slice();
+  const search = (document.getElementById('searchFilter')?.value || '').toLowerCase();
+  if (search) data = data.filter(l => l.name.toLowerCase().includes(search) || l.area.toLowerCase().includes(search));
+  if (filters.type !== 'All') data = data.filter(l => l.type === filters.type);
+  if (filters.gender !== 'All') data = data.filter(l => l.gender === filters.gender || l.gender === 'Co-ed');
+  if (filters.area !== 'All') data = data.filter(l => l.area === filters.area);
+  data = data.filter(l => l.price <= filters.budget);
+  if (filters.amenities.length) data = data.filter(l => filters.amenities.every(a => l.amenities.includes(a)));
+  if (filters.sharing !== 'All') data = data.filter(l => l.sharing === filters.sharing);
+
+  // Filter by distance if active
+  if (filters.maxDistance !== null && filters.userLocation !== null) {
+    data = data.filter(l => {
+      if (!l.lat || !l.lng) return false;
+      const dist = getDistanceKm(l.lat, l.lng, filters.userLocation.lat, filters.userLocation.lng);
+      return dist !== null && dist <= filters.maxDistance;
+    });
+  }
+
+  const sort = document.getElementById('sortSelect')?.value || 'rating';
+  if (sort === 'rating') {
+    data.sort((a,b) => b.rating - a.rating);
+  } else if (sort === 'distance-asc' && filters.userLocation !== null) {
+    data.sort((a,b) => {
+      const distA = getDistanceKm(a.lat, a.lng, filters.userLocation.lat, filters.userLocation.lng) || 9999;
+      const distB = getDistanceKm(b.lat, b.lng, filters.userLocation.lat, filters.userLocation.lng) || 9999;
+      return distA - distB;
+    });
+  } else if (sort === 'price-asc') {
+    data.sort((a,b) => a.price - b.price);
+  } else if (sort === 'price-desc') {
+    data.sort((a,b) => b.price - a.price);
+  }
+
+  document.getElementById('countDisp').textContent = data.length;
+  const grid = document.getElementById('listingsGrid');
+  grid.innerHTML = '';
+
+  if (!data.length) {
+    grid.innerHTML = `<div class="no-results" style="grid-column:1/-1"><div style="font-size:3rem;margin-bottom:.5rem">🔍</div><div style="font-size:1rem;font-weight:500;margin-bottom:.5rem">No properties found</div><div style="font-size:14px">Try adjusting your filters</div></div>`;
+    return;
+  }
+
+  // Get selected ref area coordinates for distance calculations
+  const refArea = getSelectedRefArea(search);
+  const refCoords = refArea ? AREA_COORDINATES[refArea] : null;
+
+  data.forEach(l => {
+    const saved = savedItems.has(l.id);
+    const typeClass = l.type === 'PG' ? 'badge-type-pg' : l.type === 'Govt Hostel' ? 'badge-type-govt' : 'badge-type-hostel';
+    const thumbClass = l.type === 'PG' ? 'thumb-pg' : l.type === 'Govt Hostel' ? 'thumb-govt' : 'thumb-hostel';
+
+    // Calculate distance if coordinates are available
+    let distText = '';
+    if (filters.maxDistance !== null && filters.userLocation !== null && l.lat && l.lng) {
+      const dist = getDistanceKm(l.lat, l.lng, filters.userLocation.lat, filters.userLocation.lng);
+      if (dist !== null) {
+        distText = ` · <span style="color:var(--teal);font-weight:600">📍 ${dist.toFixed(1)} km away</span>`;
+      }
+    } else if (refCoords && l.lat && l.lng) {
+      const dist = getDistanceKm(l.lat, l.lng, refCoords.lat, refCoords.lng);
+      if (dist !== null) {
+        distText = ` · <span style="color:var(--accent);font-weight:600">📍 ${dist.toFixed(1)} km to ${refArea}</span>`;
+      }
+    }
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-img ${thumbClass}">
+        <div class="card-img-inner">${l.emoji}</div>
+        <div class="card-badges">
+          <span class="badge ${typeClass}">${l.type}</span>
+          ${l.verified ? '<span class="badge badge-verified">✓ Verified</span>' : ''}
+          ${l.gender === 'Women' ? '<span class="badge badge-women">♀ Women</span>' : ''}
+        </div>
+        <div class="card-wishlist ${saved ? 'saved' : ''}" onclick="event.stopPropagation();toggleSave(${l.id},this)">${saved ? '♥' : '♡'}</div>
+      </div>
+      <div class="card-body">
+        <div class="card-name">${l.name}</div>
+        <div class="card-location">
+          <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          ${l.area}, Bengaluru${distText}
+        </div>
+        <div class="card-price-row">
+          <span class="price">₹${l.price.toLocaleString('en-IN')}</span>
+          <span class="price-period">/month</span>
+          <span class="price-type">&nbsp;·&nbsp;${l.sharing}</span>
+        </div>
+        <div class="card-amenities">
+          ${l.amenities.slice(0,4).map(a => `<span class="amenity">${amenityIcon(a)} ${a}</span>`).join('')}
+        </div>
+        <div class="card-footer">
+          <div class="rating">★ ${l.rating} <span class="review-count">(${l.reviews})</span></div>
+          <button class="contact-btn" onclick="event.stopPropagation();openContactModal('${l.owner}')">Contact</button>
+        </div>
+      </div>`;
+    card.onclick = () => showDetail(l.id);
+    grid.appendChild(card);
+  });
+}
+
+function amenityIcon(a) {
+  const m = { WiFi:'📶', Meals:'🍽️', AC:'❄️', Laundry:'👕', Gym:'💪', Parking:'🚗', CCTV:'📷', 'Power Backup':'🔋' };
+  return m[a] || '✓';
+}
+
+function setListView(mode) {
+  isListView = mode === 'list';
+  document.getElementById('listingsGrid').classList.toggle('list-view', isListView);
+  document.getElementById('gridBtn').classList.toggle('active', !isListView);
+  document.getElementById('listBtn').classList.toggle('active', isListView);
+}
+
+function toggleSave(event, id, el) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+  const token = localStorage.getItem('accessToken');
+  if (!token) {
+    showToast("Please login to save properties");
+    openModal('authModal');
+    return;
+  }
+  if (savedItems.has(id)) { savedItems.delete(id); el.textContent = '♡'; el.classList.remove('saved'); showToast('Removed from saved'); }
+  else { savedItems.add(id); el.textContent = '♥'; el.classList.add('saved'); showToast('Saved to wishlist ♥'); }
+}
+
+// ═══════════════ DETAIL ═══════════════
+function showDetail(id) {
+  const l = listings.find(x => x.id === id);
+  if (!l) return;
+  const typeClass = l.type === 'PG' ? 'badge-type-pg' : 'badge-type-hostel';
+  
+  // Calculate distance
+  const search = (document.getElementById('searchFilter')?.value || '').toLowerCase();
+  const refArea = getSelectedRefArea(search);
+  const refCoords = refArea ? AREA_COORDINATES[refArea] : null;
+  let distText = '';
+  if (refCoords && l.lat && l.lng) {
+    const dist = getDistanceKm(l.lat, l.lng, refCoords.lat, refCoords.lng);
+    if (dist !== null) {
+      distText = ` · <span style="color:var(--accent);font-weight:600">${dist.toFixed(1)} km to ${refArea}</span>`;
+    }
+  }
+
+  document.getElementById('detailContent').innerHTML = `
+    <button class="detail-back" onclick="showView('explore')">← Back to listings</button>
+    <div class="detail-grid">
+      <div class="detail-left">
+        <div class="detail-gallery">
+          <div class="gallery-icon">${l.emoji}</div>
+          <div style="position:absolute;bottom:12px;right:12px;background:rgba(0,0,0,.6);color:white;font-size:12px;padding:4px 12px;border-radius:99px;backdrop-filter:blur(8px)">📷 View Photos</div>
+          <div style="position:absolute;top:12px;left:12px;display:flex;gap:6px">
+            <span class="badge ${typeClass}">${l.type}</span>
+            ${l.verified ? '<span class="badge badge-verified">✓ Verified</span>' : ''}
+          </div>
+        </div>
+        <div class="detail-header-block">
+          <h1 class="detail-title">${l.name}</h1>
+          <div class="detail-meta">
+            <div class="detail-rating">
+              <span class="stars">★★★★★</span>
+              <span style="font-weight:600">${l.rating}</span>
+              <span style="color:var(--text3);font-size:13px">(${l.reviews} reviews)</span>
+            </div>
+            <span style="color:var(--text3)">·</span>
+            <span style="font-size:13px;color:var(--text2)">📍 ${l.area}, Bengaluru${distText}</span>
+            <span style="color:var(--text3)">·</span>
+            <span style="font-size:13px;color:var(--text2)">👤 ${l.gender}</span>
+          </div>
+        </div>
+        <div class="detail-section">
+          <div class="section-title">About this property</div>
+          <p style="font-size:14px;color:var(--text2);line-height:1.7">${l.desc}</p>
+          <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);padding:10px 14px;background:var(--bg3);border-radius:var(--radius);border:1px solid var(--border)">
+            <span>🏢</span><span><strong style="color:var(--text)">Nearby:</strong> ${l.nearby}</span>
+          </div>
+        </div>
+        <div class="detail-section">
+          <div class="section-title">Amenities</div>
+          <div class="amenities-grid">
+            ${l.amenities.map(a => `<div class="amenity-item"><span class="amenity-icon">${amenityIcon(a)}</span>${a}</div>`).join('')}
+            <div class="amenity-item"><span class="amenity-icon">🔒</span>24×7 Security</div>
+            <div class="amenity-item"><span class="amenity-icon">🚿</span>Hot Water</div>
+            <div class="amenity-item"><span class="amenity-icon">🪑</span>Furnished Rooms</div>
+          </div>
+        </div>
+        <div class="detail-section">
+          <div class="section-title">House Rules</div>
+          <div class="rules-list">
+            ${l.rules.map(r => `<div class="rule-item"><span class="rule-dot"></span>${r}</div>`).join('')}
+          </div>
+        </div>
+        <div class="detail-section">
+          <div class="section-title">Sharing Options & Pricing</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+            ${['Single','Double','Triple'].map((s,i) => `<div style="background:var(--bg2);border:1px solid ${s===l.sharing?'var(--accent)':'var(--border)'};border-radius:var(--radius);padding:12px;text-align:center"><div style="font-size:12px;color:var(--text3);margin-bottom:4px">${s} Room</div><div style="font-family:'Fraunces',serif;font-size:1.1rem;font-weight:700;color:${s===l.sharing?'var(--accent)':'var(--text)'}">₹${(l.price - i*1500).toLocaleString('en-IN')}</div><div style="font-size:11px;color:var(--text3)">per month</div></div>`).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="detail-right">
+        <div class="contact-card">
+          <div class="price-big">
+            <span class="price-main">₹${l.price.toLocaleString('en-IN')}</span>
+            <span style="font-size:14px;color:var(--text3)">/month</span>
+          </div>
+          <div class="availability-row">
+            <span class="avail-label">Availability</span>
+            <span class="avail-status">${l.avail ? `<span class="avail-dot"></span>Available Now` : `<span style="width:7px;height:7px;border-radius:50%;background:var(--red);display:inline-block"></span> Fully Booked`}</span>
+          </div>
+          <hr class="contact-divider">
+          <div class="owner-row">
+            <div class="owner-avatar">${l.ownerInitial}</div>
+            <div>
+              <div class="owner-name">${l.owner}</div>
+              <div class="owner-label">Property Owner · ${l.verified ? '✓ Verified' : 'Unverified'}</div>
+            </div>
+          </div>
+          <div class="contact-actions">
+            <button class="action-btn primary" onclick="openContactModal('${l.owner}')">📩 Send Enquiry</button>
+            <button class="action-btn outline" onclick="handleOwnerAction('call the owner', 'Calling ${l.phone}...')">📞 Call ${l.phone}</button>
+            <button class="action-btn whatsapp" onclick="handleOwnerAction('whatsapp the owner', 'Opening WhatsApp...')">💬 WhatsApp</button>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1rem;font-size:13px">
+          <div style="font-weight:600;margin-bottom:8px">📍 Map Location</div>
+          <div id="detailMap" class="dark-map" style="height:220px;background:var(--bg3);border-radius:var(--radius);border:1px solid var(--border);position:relative;z-index:1;"></div>
+          <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px;">
+            <button class="action-btn outline" id="btnGetDirections" onclick="getDirections('${l.id}', ${l.lat}, ${l.lng})" style="padding:8px 12px;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;width:100%;font-family:'DM Sans',sans-serif;">
+              🚗 Get Directions from Live Location
+            </button>
+            <button class="action-btn outline" onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${l.lat},${l.lng}', '_blank')" style="padding:8px 12px;font-size:12px;font-weight:600;color:var(--text2);border-color:var(--border);display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;width:100%;font-family:'DM Sans',sans-serif;">
+              🗺️ Open in Google Maps
+            </button>
+          </div>
+        </div>
+        <div style="background:var(--amberbg);border:1px solid rgba(245,158,11,.25);border-radius:var(--radius-lg);padding:1rem;font-size:13px;color:var(--amber)">
+          ⚠️ Always visit in person before making payment. Beware of advance payment scams.
+        </div>
+      </div>
+    </div>`;
+  showView('detail');
+  initDetailMap(l.id, l.lat, l.lng, l.name);
+}
+
+// ═══════════════ GOVT ═══════════════
+function filterGovt(btn) {
+  govtFilter = btn.dataset.val;
+  document.querySelectorAll('[data-group="gtype"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderGovt();
+}
+
+function renderGovt() {
+  let data = govtListings;
+  if (govtFilter !== 'All') data = data.filter(g => g.eligibility.includes(govtFilter));
+  const grid = document.getElementById('govtGrid');
+  grid.innerHTML = '';
+  data.forEach(g => {
+    const card = document.createElement('div');
+    card.className = 'govt-card';
+    card.innerHTML = `
+      <div class="govt-card-header">
+        <div>
+          <div class="govt-name">${g.name}</div>
+          <div class="govt-org">${g.org}</div>
+        </div>
+        <div class="govt-icon">${g.icon}</div>
+      </div>
+      <div class="govt-details">
+        <div class="govt-detail-row">📍 ${g.area}</div>
+        <div class="govt-detail-row">🪑 ${g.seats} seats available</div>
+        <div class="govt-detail-row" style="font-size:12px;color:var(--text3)">${g.desc}</div>
+      </div>
+      <div class="govt-eligibility">
+        ${g.eligibility.map(e => `<span class="chip teal" style="font-size:11px;padding:2px 10px">${e}</span>`).join('')}
+      </div>
+      <div class="govt-card-footer">
+        <span class="free-badge">${g.cost}</span>
+        <span class="apply-link" onclick="showToast('Opening govt portal...')">Apply Online →</span>
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+// ═══════════════ AREAS ═══════════════
+function renderAreas() {
+  const grid = document.getElementById('areaGrid');
+  grid.innerHTML = '';
+  areaData.forEach(a => {
+    const card = document.createElement('div');
+    card.className = 'area-card';
+    card.onclick = () => filterByArea(a.name);
+    card.innerHTML = `
+      <div class="area-emoji">${a.emoji}</div>
+      <div class="area-name">${a.name}</div>
+      <div class="area-desc">${a.desc}</div>
+      <div class="area-tags">${a.tags.map(t => `<span class="area-tag">${t}</span>`).join('')}</div>
+      <div class="area-price">${a.priceRange}/month</div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-top:4px">
+        <span>Safety: <span style="color:var(--green)">${a.safety}</span></span>
+        <span>Transit: ${a.connectivity}</span>
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+// ═══════════════ MODALS ═══════════════
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+function openContactModal(event, owner) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+  const token = localStorage.getItem('accessToken');
+  if (!token) {
+    showToast("Please login to contact the owner");
+    openModal('authModal');
+    return;
+  }
+  document.getElementById('contactOwnerName').textContent = owner;
+  openModal('contactModal');
+}
+function handleOwnerAction(action, detailText) {
+  const token = localStorage.getItem('accessToken');
+  if (!token) {
+    showToast(`Please login to ${action}`);
+    openModal('authModal');
+    return;
+  }
+  showToast(detailText);
+}
+async function handleListProperty() {
+  const token = localStorage.getItem('accessToken');
+  if (!token) {
+    showToast("Please login to list properties");
+    toggleAuthMode('register');
+    openModal('authModal');
+    return;
+  }
+  try {
+    const res = await fetch('/api/auth/me', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.ok) {
+      const user = await res.json();
+      if (user.role === 'owner' || user.role === 'admin') {
+        openModal('listModal');
+      } else {
+        showToast("Only users with 'Owner' role can list properties");
+      }
+    } else {
+      showToast("Please login as a Property Owner to list properties");
+      openModal('authModal');
+    }
+  } catch (err) {
+    showToast("Server error. Please try again.");
+  }
+}
+function sendContact() {
+  closeModal('contactModal');
+  showToast('Message sent! Owner will contact you soon.');
+}
+function submitListing() {
+  closeModal('listModal');
+  showToast('Listing submitted for review! We\'ll reach out in 24 hrs.');
+}
+document.addEventListener('click', e => {
+  if (e.target.classList.contains('modal-overlay')) {
+    e.target.classList.remove('open');
+  }
+});
+
+// ═══════════════ TOAST ═══════════════
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// Fetch live data from SQLite backend API
+async function fetchLiveDBData() {
+  try {
+    // 1. Fetch properties
+    const resProps = await fetch('/api/properties');
+    if (resProps.ok) {
+      const dataJson = await resProps.json();
+      if (dataJson.data && dataJson.data.length > 0) {
+        listings.length = 0; // Clear mock listings
+        dataJson.data.forEach(p => {
+          listings.push({
+            id: p.id,
+            name: p.name,
+            type: p.type,
+            gender: p.gender,
+            area: p.area,
+            price: p.price_min,
+            lat: p.lat,
+            lng: p.lng,
+            sharing: p.rooms && p.rooms.length > 0 ? p.rooms[0].sharing_type : 'Single',
+            amenities: p.amenities ? p.amenities.map(a => a.name) : [],
+            rating: p.avg_rating || 5.0,
+            reviews: p.review_count || 0,
+            verified: p.verified === 1,
+            owner: p.owner ? p.owner.name : 'Unknown',
+            ownerInitial: p.owner ? p.owner.name[0] : 'U',
+            phone: p.owner ? p.owner.phone : '',
+            desc: p.description,
+            rules: ['No smoking', 'Gate closes at 11 PM', 'ID card required'],
+            emoji: p.type === 'PG' ? '🏠' : p.type === 'Govt Hostel' ? '🏛️' : '🏢',
+            nearby: p.nearby_landmarks || '',
+            avail: p.available === 1
+          });
+        });
+        console.log("Loaded live properties from SQLite database.");
+      }
+    }
+
+    // 2. Fetch government hostels
+    const resGovt = await fetch('/api/govt-hostels');
+    if (resGovt.ok) {
+      const govtJson = await resGovt.json();
+      if (govtJson.data && govtJson.data.length > 0) {
+        govtListings.length = 0; // Clear mock govt listings
+        govtJson.data.forEach(g => {
+          govtListings.push({
+            id: g.id,
+            name: g.name,
+            org: g.organisation,
+            area: g.area,
+            eligibility: g.eligibility || [],
+            cost: g.cost_amount || g.cost_type,
+            seats: g.total_seats,
+            contact: g.contact || '',
+            apply: g.apply_url || 'https://sw.kar.nic.in',
+            desc: g.description,
+            icon: g.eligibility && g.eligibility.includes('Women') ? '👩' : '🏛️'
+          });
+        });
+        console.log("Loaded live government hostels from SQLite database.");
+      }
+    }
+
+    // 3. Fetch area guides
+    const resAreas = await fetch('/api/areas');
+    if (resAreas.ok) {
+      const areasJson = await resAreas.json();
+      if (areasJson.data && areasJson.data.length > 0) {
+        areaData.length = 0; // Clear mock area data
+        areasJson.data.forEach(a => {
+          areaData.push({
+            name: a.name,
+            emoji: a.emoji,
+            desc: a.description,
+            tags: a.tags || [],
+            priceRange: `₹${a.avg_price_min.toLocaleString('en-IN')}–₹${a.avg_price_max.toLocaleString('en-IN')}`,
+            safety: a.safety_label,
+            connectivity: a.transit_label
+          });
+        });
+        console.log("Loaded live area guides from SQLite database.");
+      }
+    }
+  } catch (err) {
+    console.warn("Backend API not reachable. Using fallback offline mock data.", err);
+  } finally {
+    // Re-render lists with whatever data we have
+    renderListings();
+    renderGovt();
+    renderAreas();
+  }
+}
+
+// ═══════════════ USER AUTHENTICATION ═══════════════
+function toggleAuthMode(mode) {
+  const title = document.getElementById('authModalTitle');
+  const loginSec = document.getElementById('login-section');
+  const regSec = document.getElementById('register-section');
+  if (mode === 'login') {
+    title.textContent = 'Login to StayFinder';
+    loginSec.style.display = 'block';
+    regSec.style.display = 'none';
+  } else {
+    title.textContent = 'Create a StayFinder Account';
+    loginSec.style.display = 'none';
+    regSec.style.display = 'block';
+  }
+}
+
+function updateAuthUI(user) {
+  const authBtn = document.getElementById('nav-auth-btn');
+  const logoutBtn = document.getElementById('nav-logout-btn');
+  const greeting = document.getElementById('nav-user-greeting');
+  const usernameSpan = document.getElementById('nav-username');
+  if (user) {
+    authBtn.style.display = 'none';
+    logoutBtn.style.display = 'inline-block';
+    greeting.style.display = 'inline-block';
+    usernameSpan.textContent = user.name;
+  } else {
+    authBtn.style.display = 'inline-block';
+    logoutBtn.style.display = 'none';
+    greeting.style.display = 'none';
+    usernameSpan.textContent = '';
+  }
+}
+
+async function checkAuthStatus() {
+  const token = localStorage.getItem('accessToken');
+  if (!token) {
+    updateAuthUI(null);
+    return;
+  }
+  try {
+    const res = await fetch('/api/auth/me', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.ok) {
+      const user = await res.json();
+      updateAuthUI(user);
+      console.log("Logged in as:", user.name);
+    } else {
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      updateAuthUI(null);
+    }
+  } catch (err) {
+    console.error("Auth status check failed", err);
+    updateAuthUI(null);
+  }
+}
+
+async function handleLogin(e) {
+  e.preventDefault();
+  const email = document.getElementById('login-email').value;
+  const password = document.getElementById('login-password').value;
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      localStorage.setItem('accessToken', data.accessToken);
+      localStorage.setItem('refreshToken', data.refreshToken);
+      updateAuthUI(data.user);
+      closeModal('authModal');
+      showToast(`Welcome back, ${data.user.name}!`);
+      document.getElementById('loginForm').reset();
+    } else {
+      showToast(data.error || 'Login failed');
+    }
+  } catch (err) {
+    showToast('Server connection failed');
+  }
+}
+
+async function handleRegister(e) {
+  e.preventDefault();
+  const name = document.getElementById('reg-name').value;
+  const email = document.getElementById('reg-email').value;
+  const phone = document.getElementById('reg-phone').value;
+  const role = document.getElementById('reg-role').value;
+  const password = document.getElementById('reg-password').value;
+  try {
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, phone, role, password })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      localStorage.setItem('accessToken', data.accessToken);
+      localStorage.setItem('refreshToken', data.refreshToken);
+      updateAuthUI(data.user);
+      closeModal('authModal');
+      showToast(`Welcome to StayFinder, ${data.user.name}!`);
+      document.getElementById('registerForm').reset();
+    } else {
+      showToast(data.error || 'Registration failed');
+    }
+  } catch (err) {
+    showToast('Server connection failed');
+  }
+}
+
+async function logoutUser() {
+  const token = localStorage.getItem('accessToken');
+  const refresh = localStorage.getItem('refreshToken');
+  if (token) {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify({ refreshToken: refresh })
+      });
+    } catch (e) {
+      console.warn("Failed to invalidate refresh token on backend:", e);
+    }
+  }
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+  updateAuthUI(null);
+  showToast('Logged out successfully');
+}
+
+// ═══════════════ INIT ═══════════════
+buildHeroMap();
+fetchLiveDBData();
+checkAuthStatus();
+</script>
+</body>
+</html>
