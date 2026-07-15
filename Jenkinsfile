@@ -9,12 +9,7 @@ pipeline {
 
     stages {
 
-        stage('Checkout') {
-            steps {
-                git branch: 'main',
-                    url: 'https://github.com/gcdevaraj/stayfinder-py.git'
-            }
-        }
+       
 
         stage('Install Dependencies') {
             steps {
